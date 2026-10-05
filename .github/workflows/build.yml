@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -20,14 +19,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK packages
+      - name: Install Android SDK
         run: |
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -35,42 +35,26 @@ jobs:
           gradle-version: '8.7'
 
       - name: Find TokoKu ZIP
-        shell: bash
         run: |
-          set -e
-
-          ZIP=$(find . -maxdepth 2 -type f -iname 'TokoKu-v3.22.15*.zip' | head -n 1)
+          ZIP=$(find . -type f -iname 'TokoKu-v3.22.15*.zip' | head -n 1)
 
           if [ -z "$ZIP" ]; then
             echo "ZIP TokoKu v3.22.15 tidak ditemukan."
-            echo "File yang ada:"
-            find . -maxdepth 2 -type f -print
+            find . -type f -print
             exit 1
           fi
 
-          echo "ZIP ditemukan:"
-          echo "$ZIP"
-
+          echo "ZIP ditemukan: $ZIP"
           echo "TOKOKU_ZIP=$ZIP" >> "$GITHUB_ENV"
 
       - name: Extract TokoKu
-        shell: bash
         run: |
-          set -e
-
           rm -rf tokoku-source
           mkdir -p tokoku-source
-
           unzip -q "$TOKOKU_ZIP" -d tokoku-source
 
-          echo "Isi hasil extract:"
-          find tokoku-source -maxdepth 3 -type f | head -100
-
       - name: Find Android Project
-        shell: bash
         run: |
-          set -e
-
           PROJECT=$(find tokoku-source \
             -type f \
             \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
@@ -86,38 +70,26 @@ jobs:
 
             if [ -z "$PROJECT" ]; then
               echo "Project Android tidak ditemukan."
-              find tokoku-source -maxdepth 5 -type f -print
+              find tokoku-source -type f -print
               exit 1
             fi
 
             PROJECT_DIR=$(dirname "$(dirname "$PROJECT")")
           fi
 
-          echo "Project Android:"
-          echo "$PROJECT_DIR"
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project: $PROJECT_DIR"
 
       - name: Prepare Gradle
-        shell: bash
         run: |
-          set -e
-
           cd "$PROJECT_DIR"
 
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
-            echo "Menggunakan Gradle Wrapper."
-          else
-            echo "Gradle Wrapper tidak ditemukan."
-            echo "Menggunakan Gradle 8.7."
           fi
 
-      - name: Build Debug APK
-        shell: bash
+      - name: Build APK
         run: |
-          set -e
-
           cd "$PROJECT_DIR"
 
           if [ -f "./gradlew" ]; then
@@ -127,23 +99,17 @@ jobs:
           fi
 
       - name: Find APK
-        shell: bash
         run: |
-          set -e
-
           APK=$(find "$PROJECT_DIR" \
             -type f \
             -path "*/build/outputs/apk/debug/*.apk" \
             -print -quit)
 
           if [ -z "$APK" ]; then
-            echo "APK DEBUG tidak ditemukan."
+            echo "APK tidak ditemukan."
             find "$PROJECT_DIR" -type f -name "*.apk" -print
             exit 1
           fi
-
-          echo "APK ditemukan:"
-          echo "$APK"
 
           cp "$APK" "TokoKu-v3.22.15-Belanja-Operasional-debug.apk"
 

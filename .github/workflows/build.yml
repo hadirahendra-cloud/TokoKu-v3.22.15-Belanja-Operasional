@@ -22,7 +22,10 @@ jobs:
           
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+  run: |
+    export ANDROID_HOME="$ANDROID_SDK_ROOT"
+    yes | sdkmanager --licenses >/dev/null 2>&1 || true
+    sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Install Android SDK
         run: |

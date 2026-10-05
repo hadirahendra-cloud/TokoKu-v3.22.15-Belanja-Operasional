@@ -24,14 +24,26 @@ jobs:
       - name: Setup Android SDK
         shell: bash
         run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "ANDROID_HOME=$ANDROID_HOME"
+          set -e
 
-          sdkmanager --version
+          SDK="$ANDROID_SDK_ROOT"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          echo "ANDROID_SDK_ROOT=$SDK"
+          echo "SDKMANAGER=$SDKMANAGER"
 
-          sdkmanager \
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager tidak ditemukan"
+            ls -la "$SDK/cmdline-tools/" || true
+            ls -la "$SDK/cmdline-tools/latest/bin/" || true
+            exit 1
+          fi
+
+          "$SDKMANAGER" --version
+
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"

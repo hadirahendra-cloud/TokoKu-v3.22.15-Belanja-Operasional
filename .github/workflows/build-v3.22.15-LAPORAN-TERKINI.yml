@@ -1,0 +1,89 @@
+name: Build TokoKu v3.22.15 - Laporan Terkini
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cari ZIP versi terbaru
+        run: |
+          set -e
+          ZIP="TokoKu-v3.22.15-LAPORAN-TERKINI-GITHUB-READY.zip"
+          test -f "$ZIP"
+          echo "ZIP ditemukan: $ZIP"
+          unzip -q "$ZIP" -d /tmp/tokoku-source
+          PROJECT_DIR=$(find /tmp/tokoku-source -type f -name settings.gradle -o -name settings.gradle.kts | head -n 1 | xargs -r dirname)
+          test -n "$PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Siapkan project Android
+        run: |
+          set -e
+          rm -rf build-project
+          mkdir -p build-project
+          cp -a "$PROJECT_DIR"/. build-project/
+          test -f build-project/settings.gradle
+          test -f build-project/app/build.gradle
+          grep -q "versionName '3.22.15'" build-project/app/build.gradle
+          grep -q "Laporan Terkini" build-project/app/src/main/assets/index.html
+          grep -q 'data-section="salesTotal"' build-project/app/src/main/assets/index.html
+          grep -q 'id="salesTotal"' build-project/app/src/main/assets/index.html
+          echo "Source Laporan Terkini terdeteksi."
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build DEBUG APK
+        working-directory: build-project
+        run: |
+          set -e
+          gradle :app:clean :app:assembleDebug --no-daemon --stacktrace
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp app/build/outputs/apk/debug/app-debug.apk \
+            "$GITHUB_WORKSPACE/output/TokoKu-v3.22.15-Laporan-Terkini.apk"
+
+      - name: Verify APK
+        working-directory: build-project
+        run: |
+          set -e
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+            app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging \
+            app/build/outputs/apk/debug/app-debug.apk | \
+            grep -E "versionCode='40' versionName='3.22.15'"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TokoKu-v3.22.15-Laporan-Terkini
+          path: output/TokoKu-v3.22.15-Laporan-Terkini.apk
+          if-no-files-found: error
+          retention-days: 30
